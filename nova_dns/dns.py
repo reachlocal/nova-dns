@@ -39,13 +39,19 @@ from nova_dns.dnsmanager import DNSRecord, DNSSOARecord
 from nova_dns.auth import AUTH
 
 LOG = logging.getLogger("nova_dns.dns")
+
+nova_dns_opts = [
+    flags.cfg.StrOpt("dns_listen", 
+                     default="0.0.0.0",
+                     help="IP address for DNS API to listen"),
+
+    flags.cfg.IntOpt("dns_listen_port", 
+                     default=15353,
+                     help="DNS API port")
+]
+
 FLAGS = flags.FLAGS
-
-
-flags.DEFINE_string("dns_listen", "0.0.0.0",
-                    "IP address for DNS API to listen")
-flags.DEFINE_integer("dns_listen_port", 15353,
-                    "DNS API port")
+FLAGS.register_opts(nova_dns_opts)
 
 class Service(service.WSGIService):
     """

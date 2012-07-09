@@ -25,25 +25,34 @@ from nova import log as logging
 from abc import ABCMeta, abstractmethod
 
 LOG = logging.getLogger("nova_dns.dnsmanager")
-FLAGS = flags.FLAGS
 
+nova_dns_dnsmanager_opts = [
+    flags.cfg.StrOpt("dns_default_ttl", 
+                     default=7200,
+                     help="Default record ttl"),
+    flags.cfg.StrOpt("dns_soa_primary", 
+                     default="ns1",
+                     help="Name server that will respond authoritatively for the domain"),
+    flags.cfg.StrOpt("dns_soa_email", 
+                     default="hostmaster",
+                     help="Email address of the person responsible for this zone "),
+    flags.cfg.IntOpt("dns_soa_refresh", 
+                     default=10800,
+                     help="The time when the slave will try to refresh the zone from the master"),
+    flags.cfg.IntOpt("dns_soa_retry", 
+                     default=3600,
+                     help="time between retries if the slave fails to contact the master"),
+    flags.cfg.IntOpt("dns_soa_expire", 
+                     default=604800,
+                     help="Indicates when the zone data is no longer authoritative")
+]
 
-flags.DEFINE_integer("dns_default_ttl", 7200,
-                    "Default record ttl")
-flags.DEFINE_string("dns_soa_primary", "ns1",
-                    "Name server that will respond authoritatively for the domain")
-flags.DEFINE_string("dns_soa_email", "hostmaster",
-                    "Email address of the person responsible for this zone ")
-flags.DEFINE_integer("dns_soa_refresh", 10800,
-                    "The time when the slave will try to refresh the zone from the master")
-flags.DEFINE_integer("dns_soa_retry", 3600,
-                    "time between retries if the slave fails to contact the master")
-flags.DEFINE_integer("dns_soa_expire", 604800,
-                    "Indicates when the zone data is no longer authoritative")
 record_types=set(('A', 'AAAA', 'MX', 'SOA', 'CNAME', 'PTR', 'SPF', 'SRV', 'TXT', 'NS',
           'AFSDB', 'CERT', 'DNSKEY', 'DS', 'HINFO', 'KEY', 'LOC', 'NAPTR', 'RP', 'RRSIG',
           'SSHFP'))
 
+FLAGS = flags.FLAGS
+FLAGS.register_opts(nova_dns_dnsmanager_opts)
 
 class DNSManager:
     """abstract class"""
@@ -67,6 +76,12 @@ class DNSManager:
     def get(self, zone_name):
         """ return DNSZone object for zone_name.
         If zone not exist, raise exception
+         """
+        pass
+
+    @abstractmethod
+    def init_host(self):
+        """ Init Host
          """
         pass
 

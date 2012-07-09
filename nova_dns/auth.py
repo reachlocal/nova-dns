@@ -28,15 +28,29 @@ from nova import flags
 from keystoneclient.v2_0 import client as keystone_client
 from dnsmanager import DNSRecord
 
+#flags.DEFINE_enum("dns_auth", "keystone", ["none", "keystone"],     
+#                    "Auth mode in REST API")
+#flags.DEFINE_enum("dns_nova_auth", "keystone", ["none", "keystone"],     
+#                    "Auth mode in Nova")
+
+nova_dns_auth_opts = [
+    flags.cfg.StrOpt("dns_auth", 
+                     default="keystone", 
+                     help="Auth mode in REST API"),
+    flags.cfg.StrOpt("dns_nova_auth", 
+                     default="keystone",
+                     help="Auth mode in Nova"),
+
+    flags.cfg.StrOpt("dns_auth_role", 
+                     default="DNS_Admin", 
+                     help="Role name in REST API"),
+    flags.cfg.StrOpt("dns_zone", 
+                     default="localzone", 
+                     help="Nova DNS base zone")
+]
+
 FLAGS = flags.FLAGS
-
-flags.DEFINE_enum("dns_auth", "keystone", ["none", "keystone"],     
-                    "Auth mode in REST API")
-flags.DEFINE_enum("dns_nova_auth", "keystone", ["none", "keystone"],     
-                    "Auth mode in Nova")
-flags.DEFINE_string("dns_auth_role", "DNS_Admin", "Role name in REST API")
-flags.DEFINE_string("dns_zone", "localzone", "Nova DNS base zone")
-
+FLAGS.register_opts(nova_dns_auth_opts)
 
 
 class NoAuth(object):
@@ -49,13 +63,14 @@ class KeystoneAuth(NoAuth):
     def __init__(self):
         config = ConfigParser.RawConfigParser()
         config.read(FLAGS.dns_api_paste_config)
-        self.token = config.get("filter:authtoken", "admin_token")
+        self.user = config.get("filter:authtoken", "admin_user")
+        self.password = config.get("filter:authtoken", "admin_password")
         self.url = "%s://%s:%s/v2.0" % (
             config.get("filter:authtoken", "auth_protocol"),
             config.get("filter:authtoken", "auth_host"),
             config.get("filter:authtoken", "auth_port"))
         self.client = keystone_client.Client(
-            endpoint=self.url, token=self.token)
+            endpoint=self.url, username=self.user,password=self.password)
         self.tenants = {}
 
     def tenant2zonename(self, project_id):

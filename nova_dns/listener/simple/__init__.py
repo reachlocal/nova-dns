@@ -23,11 +23,12 @@
 
 import time
 import eventlet
-import sqlalchemy.engine
 
 from nova import log as logging
 from nova import utils
 from nova import flags
+
+from nova.db.sqlalchemy.session import get_engine
 
 from nova_dns.dnsmanager import DNSRecord
 from nova_dns.listener import AMQPListener
@@ -36,43 +37,59 @@ from nova_dns import auth
 import netaddr
 
 LOG = logging.getLogger("nova_dns.listener.simple")
-FLAGS = flags.FLAGS
 SLEEP = 60 
 
 AUTH = auth.AUTH
 
 #TODO make own zone for every instance
-flags.DEFINE_list("dns_ns", "ns1:127.0.0.1", "Name servers, in format ns1:ip1, ns2:ip2")
-flags.DEFINE_bool('dns_ptr', False, 'Manage PTR records')
-flags.DEFINE_list('dns_ptr_zones', "", "Classless delegation networks in format ip_addr/network")
+nova_dns_lis_simple = [
+    flags.cfg.ListOpt("dns_ns", 
+                      default=["ns1:127.0.0.1"], 
+                      help="Name servers, in format ns1:ip1, ns2:ip2"),
+    flags.cfg.BoolOpt('dns_ptr', 
+                      default=False, 
+                      help='Manage PTR records'),
+    flags.cfg.BoolOpt('dns_use_tenant_zone',
+                      default=True,
+                      help="Create a zone per tenant"),
+    flags.cfg.ListOpt('dns_ptr_zones', 
+                      default="", 
+                      help="Classless delegation networks in format ip_addr/network")
+]
+
+FLAGS = flags.FLAGS
+FLAGS.register_opts(nova_dns_lis_simple)
 
 class Listener(AMQPListener):
     def __init__(self):
         self.pending={}
-        self.conn=sqlalchemy.engine.create_engine(FLAGS.sql_connection, 
-            pool_recycle=FLAGS.sql_idle_timeout, echo=False)
+        LOG.info("Connecting to database @ %s"%(FLAGS.sql_connection))
+        self.conn=get_engine()
         dnsmanager_class=utils.import_class(FLAGS.dns_manager);
         self.dnsmanager=dnsmanager_class()
         self.eventlet = eventlet.spawn(self._pollip)
 
     def event(self, e):
         method = e.get("method", "<unknown>")
-        id = e["args"].get("instance_id", None)
+        uuid = e["args"].get("instance_uuid", None)
         if method=="run_instance":
-            LOG.info("Run instance %s. Waiting on assing ip address" % (str(id),))
-            self.pending[id]=1
+            LOG.info("Run instance %s. Waiting on assing ip address" % (str(uuid),))
+            self.pending[uuid]=1
         elif method=="terminate_instance":
-            if self.pending.has_key(id): del self.pending[id]
+            if self.pending.has_key(uuid): del self.pending[uuid]
             rec = self.conn.execute("select hostname, project_id "+
-                "from instances where id=%s", id).first()
+                "from instances where uuid=%s", uuid).first()
             if not rec:
-                LOG.error('Unknown id: '+id)
+                LOG.error('Unknown uuid: '+str(uuid))
             else:
                 try:
                     LOG.info("Instance %s hostname '%s' was terminated" %
-                        (id, rec.hostname))
+                        (uuid, rec.hostname))
                     #TODO check if record was added/changed by admin
-                    zonename = AUTH.tenant2zonename(rec.project_id)
+                    if (FLAGS.dns_use_tenant_zone):
+                        zonename = AUTH.tenant2zonename(rec.project_id)
+                    else:
+                        zonename = FLAGS.dns_zone
                     zone=self.dnsmanager.get(zonename)
                     if FLAGS.dns_ptr:
                         ip = zone.get(rec.hostname, 'A')[0].content
@@ -90,23 +107,27 @@ class Listener(AMQPListener):
                 continue
             #TODO change select to i.id in ( pendings ) to speed up
             for r in self.conn.execute("""
-                select i.hostname, i.id, i.project_id, f.address
+                select i.hostname, i.uuid, i.project_id, f.address
                 from instances i, fixed_ips f
                 where i.id=f.instance_id"""):
-                if r.id not in self.pending: continue
+                LOG.debug("Processing Record with id %s"%(r.uuid))
+                if r.uuid not in self.pending: continue
                 LOG.info("Instance %s hostname %s adding ip %s" %
-                    (r.id, r.hostname, r.address))
-                del self.pending[r.id]
+                    (r.uuid, r.hostname, r.address))
                 zones_list=self.dnsmanager.list()
                 if FLAGS.dns_zone not in zones_list:
                     #Lazy create main zone and populate by ns
                     self._add_zone(FLAGS.dns_zone)
-                zonename = AUTH.tenant2zonename(r.project_id)
-                if zonename not in zones_list:
-                    self._add_zone(zonename)
+                if (FLAGS.dns_use_tenant_zone):
+                    zonename = AUTH.tenant2zonename(r.project_id)
+                    if zonename not in zones_list:
+                        self._add_zone(zonename)
+                else:
+                    zonename = FLAGS.dns_zone
                 try:
                     self.dnsmanager.get(zonename).add(
                         DNSRecord(name=r.hostname, type='A', content=r.address))
+                    del self.pending[r.uuid]
                 except ValueError as e:
                     LOG.warn(str(e))
                 except:

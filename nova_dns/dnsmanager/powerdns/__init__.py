@@ -65,6 +65,8 @@ class Manager(DNSManager):
             return PowerDNSZone(zone_name)
         else:
             raise Exception('Zone does not exist')
+    def init_host(self):
+       pass
 
 class PowerDNSZone(DNSZone):
     def __init__(self, zone_name):
