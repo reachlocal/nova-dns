@@ -27,7 +27,7 @@ from abc import ABCMeta, abstractmethod
 LOG = logging.getLogger("nova_dns.dnsmanager")
 
 nova_dns_dnsmanager_opts = [
-    flags.cfg.StrOpt("dns_default_ttl", 
+    flags.cfg.IntOpt("dns_default_ttl", 
                      default=7200,
                      help="Default record ttl"),
     flags.cfg.StrOpt("dns_soa_primary", 
@@ -77,6 +77,13 @@ class DNSManager:
         """ return DNSZone object for zone_name.
         If zone not exist, raise exception
          """
+        pass
+
+    @abstractmethod
+    def drop_by_ip(self, ip):
+        """ drop a record by IP
+        Retunr True if record was deleted
+        """
         pass
 
     @abstractmethod

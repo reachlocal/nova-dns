@@ -18,6 +18,9 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import time
+import subprocess
+import os
+import os.path
 
 from nova import flags
 from nova import log as logging
@@ -26,6 +29,16 @@ from nova_dns.dnsmanager.powerdns.session import get_session
 from nova_dns.dnsmanager.powerdns.models import Domains, Records
 from sqlalchemy.sql import and_
 LOG = logging.getLogger("nova_dns.dnsmanager.powerdns")
+
+pdns_nova_dns_dnsmanager_opts = [
+    flags.cfg.StrOpt("dns_powerdns_geomaps_dir", 
+                     default="/var/lib/powerdns/nova/maps",
+                     help="Default record ttl"),
+]
+
+FLAGS = flags.FLAGS
+FLAGS.register_opts(pdns_nova_dns_dnsmanager_opts)
+
 
 models.register_models()
 
@@ -65,6 +78,15 @@ class Manager(DNSManager):
             return PowerDNSZone(zone_name)
         else:
             raise Exception('Zone does not exist')
+    def drop_by_ip(self, ip):
+        q=self.session.query(Records).filter(Records.content==ip)
+
+        if q.delete():
+            LOG.info("Record with IP (%s) was deleted" %(ip))
+            return True 
+        else:
+            raise Exception("No records was deleted")
+
     def init_host(self):
        pass
 
@@ -98,6 +120,17 @@ class PowerDNSZone(DNSZone):
         LOG.info("[%s]: Record (%s, %s, '%s') was added" %
             (self.zone_name, rec.name, rec.type, rec.content))
         self._update_serial(rec.change_date)
+        if v.name:
+            top_level_zone=".".join(self.zone_name.split(".")[1:])
+            file_name= FLAGS.dns_powerdns_geomaps_dir+ "/" + v.name  + "." + top_level_zone
+            with open(file_name,"w") as f:
+                f.write("$RECORD %s\n"%(v.name))
+                f.write("$ORIGIN %s\n"%(top_level_zone))
+                f.write("0   %s.external\n"%(v.name))
+                f.write("900 %s.internal\n"%(v.name))
+                f.flush()
+                subprocess.call(["sudo","pdns_control","rediscover"])
+        subprocess.call(['sudo','pdnssec','--config-dir=/etc/powerdns/pdnssec','rectify-zone',self.zone_name])
         return "ok"
     def get(self, name=None, type=None):
         res=[]
@@ -129,8 +162,12 @@ class PowerDNSZone(DNSZone):
         return "ok"
     def delete(self, name, type=None):
         if self._q(name, type).delete():
-            LOG.info("[%s]: Record (%s, %s) was deleted" % 
-                (self.zone_name, name, type))
+            LOG.info("[%s]: Record (%s, %s) was deleted" % (self.zone_name, name, type))
+            file_name= FLAGS.dns_powerdns_geomaps_dir+ "/" + name + "." + ".".join(self.zone_name.split(".")[1:]) 
+            LOG.debug("Geomap file to delte: %s"%(file_name))
+            if os.path.isfile(file_name):
+                os.remove(file_name)
+                subprocess.call(["sudo","pdns_control","rediscover"])
             return "ok"
         else:
             raise Exception("No records was deleted")

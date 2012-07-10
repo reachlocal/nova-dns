@@ -85,6 +85,12 @@ class Service(object):
             routing_key="compute.#",
             channel=self.channel,
             **options)
+        self.network_queue = kombu.entity.Queue(
+            name="nova_dns_network",
+            exchange=exchange,
+            routing_key="network",
+            channel=self.channel,
+            **options)
         LOG.debug("created kombu connection: %s" % self.params)
 
     def process_message(self, body, message):
@@ -115,7 +121,7 @@ class Service(object):
                 self.reconnect()
                 with kombu.messaging.Consumer(
                     channel=self.channel,
-                    queues=self.queue,
+                    queues=[self.queue,self.network_queue],
                     callbacks=[self.process_message]) as consumer:
                     while True:
                         self.connection.drain_events()

@@ -71,6 +71,8 @@ class Listener(AMQPListener):
 
     def event(self, e):
         method = e.get("method", "<unknown>")
+        if not e.has_key("args"):
+            return
         uuid = e["args"].get("instance_uuid", None)
         if method=="run_instance":
             LOG.info("Run instance %s. Waiting on assing ip address" % (str(uuid),))
@@ -90,6 +92,7 @@ class Listener(AMQPListener):
                         zonename = AUTH.tenant2zonename(rec.project_id)
                     else:
                         zonename = FLAGS.dns_zone
+                    zonename="internal."+zonename
                     zone=self.dnsmanager.get(zonename)
                     if FLAGS.dns_ptr:
                         ip = zone.get(rec.hostname, 'A')[0].content
@@ -98,6 +101,43 @@ class Listener(AMQPListener):
                     zone.delete(rec.hostname, 'A')
                 except:
                     pass
+        elif method=="associate_floating_ip":
+            LOG.debug("Message: %s"%(e))
+            #u'args': {u'interface': u'eth0', u'fixed_address': u'10.0.0.24', u'floating_address': u'172.31.237.87'},
+
+            float_ip = e["args"].get("floating_address")
+            fixed_ip = e["args"].get("fixed_address")
+
+            rec = self.conn.execute("select hostname, project_id, uuid from instances " +
+                                    "inner join fixed_ips on instances.id=fixed_ips.instance_id and fixed_ips.address='%s'"%(fixed_ip)).first()
+
+            LOG.debug("Processing Record with id %s"%(rec.uuid))
+            LOG.info("Instance %s hostname %s adding externall ip %s" %(rec.uuid, rec.hostname, float_ip))
+            zones_list=self.dnsmanager.list()
+            if ("extrenal."+FLAGS.dns_zone) not in zones_list:
+                self._add_zone("external."+FLAGS.dns_zone)
+            if (FLAGS.dns_use_tenant_zone):
+                 zonename = AUTH.tenant2zonename(rec.project_id)
+                 if zonename not in zones_list:
+                    self._add_zone(zonename)
+                 if ("extrenal."+zonename) not in zones_list:
+                    self._add_zone("external."+zonename)
+            else:
+                 zonename = FLAGS.dns_zone
+            zonename = "external."+zonename
+            try:
+                 self.dnsmanager.get(zonename).add(DNSRecord(name=rec.hostname, type='A', content=float_ip))
+            except ValueError as e:
+                LOG.warn(str(e))
+            except:
+                pass
+
+        elif method=="disassociate_floating_ip":
+            ip = e["args"].get("address",None)
+            try:
+              self.dnsmanager.drop_by_ip(ip)
+            except:
+              LOG.error("Could not delete record for IP adresss %s"%(ip))
         else:
             LOG.debug("Skip message with method: "+method)
     def _pollip(self):
@@ -115,15 +155,17 @@ class Listener(AMQPListener):
                 LOG.info("Instance %s hostname %s adding ip %s" %
                     (r.uuid, r.hostname, r.address))
                 zones_list=self.dnsmanager.list()
-                if FLAGS.dns_zone not in zones_list:
-                    #Lazy create main zone and populate by ns
-                    self._add_zone(FLAGS.dns_zone)
+                if ("internal."+FLAGS.dns_zone) not in zones_list:
+                    self._add_zone("internal."+FLAGS.dns_zone)
                 if (FLAGS.dns_use_tenant_zone):
                     zonename = AUTH.tenant2zonename(r.project_id)
                     if zonename not in zones_list:
                         self._add_zone(zonename)
+                    if ("internal."+zonename) not in zones_list:
+                        self._add_zone("internal."+zonename)
                 else:
                     zonename = FLAGS.dns_zone
+                zonename = "internal."+zonename
                 try:
                     self.dnsmanager.get(zonename).add(
                         DNSRecord(name=r.hostname, type='A', content=r.address))
@@ -143,6 +185,7 @@ class Listener(AMQPListener):
         try:
             self.dnsmanager.add(name)
             zone=self.dnsmanager.get(name)
+            LOG.debug("FLAGS.dns_ns = %s"%(FLAGS.dns_ns))
             for ns in FLAGS.dns_ns:
                 (name,content)=ns.split(':',2)
                 zone.add(DNSRecord(name=name, type="NS", content=content))
