@@ -73,7 +73,9 @@ nova_dns.listener.simple
 * ``dns_ptr_zones``
   Classless delegation networks in format ip_addr/network
   (list, '' by default)
-
+* ``dns_internal_external_zone``
+  Append internal/external zone depending on fixed or floating IP
+  (boolean, True by default)
 
 Options, used by Nova DNS to connect to rabbit
 ----------------------------------------------

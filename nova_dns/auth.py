@@ -65,12 +65,16 @@ class KeystoneAuth(NoAuth):
         config.read(FLAGS.dns_api_paste_config)
         self.user = config.get("filter:authtoken", "admin_user")
         self.password = config.get("filter:authtoken", "admin_password")
+        self.tenant = config.get("filter:authtoken", "admin_tenant")
         self.url = "%s://%s:%s/v2.0" % (
             config.get("filter:authtoken", "auth_protocol"),
             config.get("filter:authtoken", "auth_host"),
             config.get("filter:authtoken", "auth_port"))
         self.client = keystone_client.Client(
-            endpoint=self.url, username=self.user,password=self.password)
+            username=self.user,
+            password=self.password, 
+            tenant_name=self.tenant,
+            auth_url=self.url)
         self.tenants = {}
 
     def tenant2zonename(self, project_id):
