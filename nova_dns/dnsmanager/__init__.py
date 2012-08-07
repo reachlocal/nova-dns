@@ -73,6 +73,11 @@ class DNSManager:
         pass
 
     @abstractmethod
+    def get_by_ip(self, ip):
+	""" return DNSRecord object for ip. """
+	pass
+
+    @abstractmethod
     def get(self, zone_name):
         """ return DNSZone object for zone_name.
         If zone not exist, raise exception
@@ -107,6 +112,9 @@ class DNSZone:
     @abstractmethod
     def get(self, name, type=None):
         pass
+    @abstractmethod
+    def get_by_ip(self, name):
+	pass
     @abstractmethod
     def set(self, name, type, content, priority, ttl):
         pass

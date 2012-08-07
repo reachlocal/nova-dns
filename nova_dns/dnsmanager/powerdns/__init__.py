@@ -78,6 +78,8 @@ class Manager(DNSManager):
             return PowerDNSZone(zone_name)
         else:
             raise Exception('Zone does not exist')
+    def get_by_ip(self, ip):
+        return self.session.query(Records.name).filter(Records.content.like('%'+ip+'%')).all()
     def drop_by_ip(self, ip):
         q=self.session.query(Records).filter(Records.content==ip)
 
@@ -183,10 +185,9 @@ class PowerDNSZone(DNSZone):
         self.session.flush()
     def _q(self, name=None, type=None):
         q=self.session.query(Records).filter(Records.domain_id==self.domain_id)
-        if type:
+	if type:
             q=q.filter(Records.type==DNSRecord.normtype(type))
         if name is None:
             return q
         fqdn=name+"."+self.zone_name if name else self.zone_name
         return q.filter(Records.name==fqdn)
-

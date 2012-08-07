@@ -54,10 +54,7 @@ nova_dns_lis_simple = [
                       help="Create a zone per tenant"),
     flags.cfg.ListOpt('dns_ptr_zones', 
                       default="", 
-                      help="Classless delegation networks in format ip_addr/network"),
-    flags.cfg.BoolOpt('dns_internal_external_domain',
-                      default=True,
-                      help="Create internal/external IP zones"),
+                      help="Classless delegation networks in format ip_addr/network")
 ]
 
 FLAGS = flags.FLAGS
@@ -95,8 +92,7 @@ class Listener(AMQPListener):
                         zonename = AUTH.tenant2zonename(rec.project_id)
                     else:
                         zonename = FLAGS.dns_zone
-                    if (FLAGS.dns_internal_external_domain):
-                        zonename = "internal."+zonename
+#                    zonename="internal."+zonename
                     zone=self.dnsmanager.get(zonename)
                     if FLAGS.dns_ptr:
                         ip = zone.get(rec.hostname, 'A')[0].content
@@ -118,18 +114,17 @@ class Listener(AMQPListener):
             LOG.debug("Processing Record with id %s"%(rec.uuid))
             LOG.info("Instance %s hostname %s adding externall ip %s" %(rec.uuid, rec.hostname, float_ip))
             zones_list=self.dnsmanager.list()
-            if ("extrenal."+FLAGS.dns_zone) not in zones_list and (FLAGS.dns_internal_external_domain):
+            if ("extrenal."+FLAGS.dns_zone) not in zones_list:
                 self._add_zone("external."+FLAGS.dns_zone)
             if (FLAGS.dns_use_tenant_zone):
                  zonename = AUTH.tenant2zonename(rec.project_id)
                  if zonename not in zones_list:
                     self._add_zone(zonename)
-                 if ("extrenal."+zonename) not in zones_list and (FLAGS.dns_internal_external_domain):
+                 if ("extrenal."+zonename) not in zones_list:
                     self._add_zone("external."+zonename)
             else:
                  zonename = FLAGS.dns_zone
-            if (FLAGS.dns_internal_external_domain):
-                zonename = "external."+zonename
+            zonename = "external."+zonename
             try:
                  self.dnsmanager.get(zonename).add(DNSRecord(name=rec.hostname, type='A', content=float_ip))
             except ValueError as e:
@@ -160,34 +155,41 @@ class Listener(AMQPListener):
                 LOG.info("Instance %s hostname %s adding ip %s" %
                     (r.uuid, r.hostname, r.address))
                 zones_list=self.dnsmanager.list()
-                if ("internal."+FLAGS.dns_zone) not in zones_list and (FLAGS.dns_internal_external_domain):
-                    self._add_zone("internal."+FLAGS.dns_zone)
-                else:
+#                if ("internal."+FLAGS.dns_zone) not in zones_list:
+                if (FLAGS.dns_zone) not in zones_list:
+#                    self._add_zone("internal."+FLAGS.dns_zone)
                     self._add_zone(FLAGS.dns_zone)
                 if (FLAGS.dns_use_tenant_zone):
                     zonename = AUTH.tenant2zonename(r.project_id)
                     if zonename not in zones_list:
                         self._add_zone(zonename)
-                    if ("internal."+zonename) not in zones_list and (FLAGS.dns_internal_external_domain):
-                        self._add_zone("internal."+zonename)
+#                    if ("internal."+zonename) not in zones_list:
+#                        self._add_zone("internal."+zonename)
+                    if (zonename) not in zones_list:
+                        self._add_zone(zonename)
                 else:
                     zonename = FLAGS.dns_zone
-                if (FLAGS.dns_internal_external_domain):
-                    zonename = "internal."+zonename
-                try:
-                    self.dnsmanager.get(zonename).add(
-                        DNSRecord(name=r.hostname, type='A', content=r.address))
-                    del self.pending[r.uuid]
-                except ValueError as e:
-                    LOG.warn(str(e))
-                except:
-                    pass
-                if FLAGS.dns_ptr:
-                    (ptr_zonename, octet) = self.ip2zone(r.address)
-                    if ptr_zonename not in zones_list:
-                        self._add_zone(ptr_zonename)
-                    self.dnsmanager.get(ptr_zonename).add(DNSRecord(name=octet, 
-                        type='PTR', content=r.hostname+'.'+zonename))
+#                zonename = "internal."+zonename
+                name=self.GET.get('name', None)
+                name="" if name=='@' else name
+                type=self.GET.get('type', None)
+		if r.hostname+"."+zonename not in self.dnsmanager.get(zonename).get(name=name, type=type):
+                    try:
+                        self.dnsmanager.get(zonename).add(
+                            DNSRecord(name=r.hostname, type='A', content=r.address))
+                        del self.pending[r.uuid]
+                    except ValueError as e:
+                        LOG.warn(str(e))
+                    except:
+                        pass
+                    if FLAGS.dns_ptr:
+                        (ptr_zonename, octet) = self.ip2zone(r.address)
+                        if ptr_zonename not in zones_list:
+                            self._add_zone(ptr_zonename)
+                        self.dnsmanager.get(ptr_zonename).add(DNSRecord(name=octet, 
+                            type='PTR', content=r.hostname+'.'+zonename))
+		else:
+		    del self.pending[r.uuid]
 
     def _add_zone(self, name):
         try:

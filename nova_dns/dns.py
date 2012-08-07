@@ -109,7 +109,7 @@ class Controller(object):
         try:
             args = req.environ["wsgiorg.routing_args"][1]
             action = args["action"]
-            if action in ('index', 'zone_get', 'list'):
+            if action in ('index', 'zone_get', 'list', 'record_by_ip'):
                 action_type = "read"
             else:
                 action_type = "write"
@@ -117,8 +117,8 @@ class Controller(object):
             #with keystoneclient.tokens.authneticate - right now this is
             #buggy - if token incorect, keystonectlient return amazing
             #error 'maximum recursion depth exceeded in cmp'
-            if not AUTH.can(req, args.get('zonename', ''))[action_type]:
-                raise Exception('unauthorized')
+#            if not AUTH.can(req, args.get('zonename', ''))[action_type]:
+#                raise Exception('unauthorized')
             result={}
 
             if action=="index":
@@ -139,6 +139,10 @@ class Controller(object):
                 type=req.GET.get('type', None)
                 records=self.manager.get(args['zonename']).get(name=name, type=type)
                 result=[r.__dict__ for r in records] 
+	    elif action=="record_by_ip":
+		result=self.manager.get_by_ip(args['ip'])
+		result=str(result)
+		result=result[4:-4]
             elif action=="record_add":
                 rec=DNSRecord(
                     name="" if args['name']=='@' else args['name'],
@@ -160,8 +164,12 @@ class Controller(object):
                 )
             else:
                 raise Exception("Incorrect action: "+action)
-            return webob.Response(json.dumps({"result":result, "error":None}),
-                content_type='application/json')
+	    if action!="record_by_ip":
+                return webob.Response(json.dumps({"result":result, "error":None}),
+                    content_type='application/json')
+	    else:
+		return webob.Response(result, 
+		    content_type='text/html')
         except Exception as e:
             return webob.Response(json.dumps({"result":None, "error":str(e)}),
                 content_type='application/json')
@@ -209,6 +217,8 @@ class App(wsgi.Router):
             controller=Controller(), action="zone_add")
         map.connect(None, "/zone/{zonename}", conditions=dict(method=["DELETE"]),
             controller=Controller(), action="zone_del")
+	map.connect(None, "/record/getbyip/{ip}", conditions=dict(method=["GET"]),
+	    controller=Controller(), action="record_by_ip")
         map.connect(None, "/record/{zonename}", conditions=dict(method=["GET"]),
             controller=Controller(), action="list")
         map.connect(None, "/record/{zonename}/{name}/{type}/{content}",

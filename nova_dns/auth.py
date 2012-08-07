@@ -70,9 +70,8 @@ class KeystoneAuth(NoAuth):
             config.get("filter:authtoken", "auth_protocol"),
             config.get("filter:authtoken", "auth_host"),
             config.get("filter:authtoken", "auth_port"))
-        self.client = keystone_client.Client(
-            username=self.user,
-            password=self.password, 
+        self.client = keystone_client.Client(username=self.user,
+            password=self.password,
             tenant_name=self.tenant,
             auth_url=self.url)
         self.tenants = {}
