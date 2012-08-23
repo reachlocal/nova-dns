@@ -1,6 +1,5 @@
-#!/usr/bin/python
+#!/usr/bin/python 
 # vim: tabstop=4 shiftwidth=4 softtabstop=4
-
 #    Nova DNS
 #    Copyright (C) GridDynamics Openstack Core Team, GridDynamics
 #
@@ -152,6 +151,13 @@ class Listener(AMQPListener):
                 where i.id=f.instance_id"""):
                 LOG.debug("Processing Record with id %s"%(r.uuid))
                 if r.uuid not in self.pending: continue
+                zone=self.dnsmanager.get(AUTH.tenant2zonename(r.project_id))
+                if len(zone.get(r.hostname, 'A')):
+                    if FLAGS.dns_ptr:
+                        ip = zone.get(r.hostname, 'A')[0].content
+                        (ptr_zonename, octet) = self.ip2zone(zone.get(r.hostname, 'A')[0].content)
+                        self.dnsmanager.get(ptr_zonename).delete(str(octet), 'PTR')
+                    zone.delete(r.hostname, 'A')
                 LOG.info("Instance %s hostname %s adding ip %s" %
                     (r.uuid, r.hostname, r.address))
                 zones_list=self.dnsmanager.list()
@@ -170,9 +176,9 @@ class Listener(AMQPListener):
                 else:
                     zonename = FLAGS.dns_zone
 #                zonename = "internal."+zonename
-                name=self.GET.get('name', None)
+                name=self.dnsmanager.get(zonename).get('name', None)
                 name="" if name=='@' else name
-                type=self.GET.get('type', None)
+                type=self.dnsmanager.get(zonename).get('type', None)
 		if r.hostname+"."+zonename not in self.dnsmanager.get(zonename).get(name=name, type=type):
                     try:
                         self.dnsmanager.get(zonename).add(
