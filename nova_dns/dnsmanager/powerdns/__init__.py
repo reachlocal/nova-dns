@@ -23,7 +23,7 @@ import os
 import os.path
 
 from nova import flags
-from nova import log as logging
+from nova.openstack.common import log as logging
 from nova_dns.dnsmanager import DNSManager, DNSZone, DNSRecord, DNSSOARecord
 from nova_dns.dnsmanager.powerdns.session import get_session
 from nova_dns.dnsmanager.powerdns.models import Domains, Records

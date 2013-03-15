@@ -19,7 +19,7 @@
 
 """Dumb listener - only log events """
 
-from nova import log as logging
+from nova.openstack.common import log as logging
 from nova_dns.listener import AMQPListener
 
 LOG = logging.getLogger("nova_dns.listener.dumb")
