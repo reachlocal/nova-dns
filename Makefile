@@ -5,7 +5,7 @@ PYTHON=`which python`
 DESTDIR=/
 BUILDIR=$(CURDIR)/debian/nova-dns
 PROJECT=nova-dns
-VERSION=0.2.3
+VERSION=0.2.2
 
 all:
 	@echo "make source - Create source package"
