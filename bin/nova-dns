@@ -41,7 +41,6 @@ from nova.openstack.common import log as logging
 from nova import service
 
 flags.FLAGS(sys.argv)
-logging.setup(nova)
 
 from nova_dns import dns, amqp 
 
