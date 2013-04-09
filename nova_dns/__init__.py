@@ -12,7 +12,7 @@ try:
                         default="nova_dns.listener.simple.Listener",
                         help="Class to process AMQP messages"),
       flags.cfg.StrOpt("dns_api_paste_config", 
-                       default="/etc/nova-dns/dns-api-paste.ini",
+                       default="/etc/nova/api-paste.ini",
                        help="File name for the paste.deploy config for nova-dns api")
     ]
 
