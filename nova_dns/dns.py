@@ -26,6 +26,7 @@ import json
 
 from nova import flags
 from nova.openstack.common import log as logging
+from nova.openstack.common import importutils
 from nova import utils
 
 import webob
@@ -99,7 +100,7 @@ class Controller(object):
     """
 
     def __init__(self):
-        manager_class=utils.import_class(FLAGS.dns_manager);
+        manager_class=importutils.import_class(FLAGS.dns_manager);
         self.manager=manager_class()
 
     @webob.dec.wsgify
