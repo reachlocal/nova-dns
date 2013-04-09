@@ -27,7 +27,7 @@ from sqlalchemy.pool import NullPool, StaticPool
 
 import nova.exception
 import nova.flags as flags
-import nova.log as logging
+from nova.openstack.common import log as logging
 
 nova_dns_dnsmng_pns_opts = [
     flags.cfg.StrOpt('dns_sql_connection',
