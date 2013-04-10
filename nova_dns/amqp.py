@@ -34,6 +34,7 @@ import kombu.connection
 
 from nova import exception
 from nova import utils
+from nova.openstack.common import importutils
 from nova import flags
 from nova.openstack.common import log as logging
 
@@ -53,7 +54,7 @@ class Service(object):
                           virtual_host=FLAGS.rabbit_virtual_host)
         self.connection = None
         self.eventlet = None
-        listener_class = utils.import_class(FLAGS.dns_listener);
+        listener_class = importutils.import_class(FLAGS.dns_listener);
         self.listener = listener_class()
 
     def reconnect(self):

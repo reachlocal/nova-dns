@@ -25,6 +25,7 @@ import eventlet
 
 from nova.openstack.common import log as logging
 from nova import utils
+from nova.openstack.common import importutils
 from nova import flags
 
 from nova.db.sqlalchemy.session import get_engine
@@ -64,7 +65,7 @@ class Listener(AMQPListener):
         self.pending={}
         LOG.info("Connecting to database @ %s"%(FLAGS.sql_connection))
         self.conn=get_engine()
-        dnsmanager_class=utils.import_class(FLAGS.dns_manager);
+        dnsmanager_class=importutils.import_class(FLAGS.dns_manager);
         self.dnsmanager=dnsmanager_class()
         self.eventlet = eventlet.spawn(self._pollip)
 
