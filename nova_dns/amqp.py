@@ -37,7 +37,7 @@ from nova import utils
 from nova.openstack.common import importutils
 from nova import flags
 from nova.openstack.common import log as logging
-
+from nova.openstack.common.rpc import impl_kombu
 
 LOG = logging.getLogger("nova_dns.listener")
 FLAGS = flags.FLAGS
